@@ -1,56 +1,92 @@
 const helpers = {
 
-    // BUG #40: Price calculation has floating point issues and doesn't handle edge cases
-    calculateTotal: (items) => {
-        let total = 0;
-        // BUG #41: for...in loop on array iterates over indices/properties, not values
-        for (let item in items) {
-            // BUG #42: Multiplies price by itself instead of price * quantity
-            total += item.price * item.price;
+    calculateTotal: items => {
+        if (!Array.isArray(items)) {
+            throw new TypeError('Items must be an array');
         }
-        return total;
+
+        let totalCents = 0;
+        for (const item of items) {
+            const price = Number(item && item.price);
+            const quantity = Number(item && item.quantity);
+            if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(quantity) || quantity <= 0) {
+                throw new TypeError('Each item must have a positive finite price and quantity');
+            }
+            totalCents += Math.round(price * quantity * 100);
+        }
+        return totalCents / 100;
     },
 
-    // BUG #43: Validation function always returns true (logic is inverted)
     validateOrderData: (data) => {
-        if (!data.customerName || data.customerName.trim() === '') {
-            return true;  // Should return false
-        }
-        if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
-            return true;  // Should return false
-        }
-        if (!data.shippingAddress || data.shippingAddress.trim() === '') {
-            return true;  // Should return false
-        }
-        return false; // Should return true
+        if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+        if (typeof data.customerName !== 'string' || !data.customerName.trim()) return false;
+        if (!Array.isArray(data.items) || data.items.length === 0) return false;
+        if (!data.shippingAddress || typeof data.shippingAddress !== 'object' || Array.isArray(data.shippingAddress)) return false;
+
+        return data.items.every(item => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+            if (typeof item.name !== 'string' || !item.name.trim()) return false;
+
+            const price = Number(item.price);
+            const quantity = Number(item.quantity);
+            return Number.isFinite(price) && price > 0 && Number.isFinite(quantity) && quantity > 0;
+        });
     },
 
-    // BUG #44: Status validation has typo in valid statuses array
     isValidStatus: (status) => {
-        const validStatuses = ['pending', 'processing', 'shiped', 'delivered', 'cancled'];
-        // BUG #45: includes() is case-sensitive but no toLowerCase() is applied
-        return validStatuses.includes(status);
+        const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+        return typeof status === 'string' && validStatuses.includes(status.toLowerCase());
     },
 
-    // BUG #46: Pagination helper has off-by-one error
     paginate: (array, page, limit) => {
-        // BUG #47: page starts from 0 in calculation but users expect page 1 to be first
-        const startIndex = page * limit;
-        // BUG #48: slice end index is wrong — should be startIndex + limit
-        const endIndex = startIndex + limit - 1;
-        return array.slice(startIndex, endIndex);
+        if (!Array.isArray(array)) {
+            throw new TypeError('Value to paginate must be an array');
+        }
+        if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1) {
+            throw new RangeError('Page and limit must be positive integers');
+        }
+
+        const startIndex = (page - 1) * limit;
+        return array.slice(startIndex, startIndex + limit);
     },
 
-    // BUG #49: Doesn't sanitize inputs — vulnerable to XSS
     formatOrderResponse: (order) => {
+        if (!order || typeof order !== 'object') {
+            throw new TypeError('Order must be an object');
+        }
+
+        const escapeHtml = value => value.replace(/[&<>"']/g, character => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        })[character]);
+        const sanitize = value => {
+            if (typeof value === 'string') return escapeHtml(value);
+            if (Array.isArray(value)) return value.map(sanitize);
+            if (value && typeof value === 'object') {
+                return Object.fromEntries(Object.entries(value).map(([key, nestedValue]) => [key, sanitize(nestedValue)]));
+            }
+            return value;
+        };
+
+        const createdAt = order.createdAt instanceof Date
+            ? order.createdAt
+            : typeof order.createdAt === 'string' || typeof order.createdAt === 'number'
+                ? new Date(order.createdAt)
+                : null;
+        if (!createdAt || !Number.isFinite(createdAt.getTime())) {
+            throw new TypeError('Order createdAt must be a valid date');
+        }
+
         return {
             id: order.id,
-            customer: order.customerName,
-            items: order.items,
+            customer: sanitize(order.customerName),
+            items: sanitize(order.items),
             total: order.totalPrice,
-            status: order.status,
-            // BUG #50: Tries to call toISOString() on a function reference (from Bug #8)
-            created: order.createdAt.toISOString()
+            status: sanitize(order.status),
+            created: createdAt.toISOString()
         };
     }
 };

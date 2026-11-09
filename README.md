@@ -1,4 +1,4 @@
-# Buggy Order API
+# Fixed Order API (Built with GitHub Copilot)
 
 A small Express REST API for creating and managing orders. Orders are stored in memory, so they are cleared whenever the server restarts.
 

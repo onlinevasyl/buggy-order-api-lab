@@ -4,14 +4,30 @@ const orderRoutes = require('./routes/orderRoutes');
 
 const app = express();
 
-// BUG #1: bodyParser.json() is never called — request bodies will be undefined
-// BUG #2: No CORS headers configured
+app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// BUG #3: Route prefix has a typo — "/api/v1/ordrs" instead of "/api/v1/orders"
-app.use('/api/v1/ordrs', orderRoutes);
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
 
-// BUG #4: Global error handler is missing — unhandled errors crash the server
-// (no error-handling middleware)
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+    }
+
+    next();
+});
+
+app.use('/api/v1/orders', orderRoutes);
+
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+
+    const statusCode = err.statusCode || err.status || 500;
+    const message = err.message || 'Internal server error';
+
+    res.status(statusCode).json({ message });
+});
 
 module.exports = app;

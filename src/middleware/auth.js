@@ -1,22 +1,39 @@
+const jwt = require('jsonwebtoken');
+
 const auth = {
     verifyToken: (req, res, next) => {
-        // BUG #36: Header name is case-sensitive check — should be lowercase
-        const token = req.headers['Authorization'];
+        const authHeader = req.headers.authorization;
+        const bearerToken = typeof authHeader === 'string'
+            ? authHeader.match(/^Bearer\s+(\S+)$/i)
+            : null;
 
-        if (!token) {
-            // BUG #37: Returns 403 (Forbidden) instead of 401 (Unauthorized) when no token
-            return res.status(403).json({ message: 'No token provided' });
+        if (!bearerToken) {
+            res.set('WWW-Authenticate', 'Bearer');
+            return res.status(401).json({ message: 'Bearer token required' });
         }
 
-        // BUG #38: Token "validation" just checks if it exists — no actual verification
-        // This is a major security vulnerability
-        if (token === 'undefined' || token === 'null') {
-            return res.status(401).json({ message: 'Invalid token' });
+        const secret = process.env.JWT_SECRET;
+        if (!secret) {
+            console.error('JWT_SECRET is not configured');
+            return res.status(500).json({ message: 'Authentication is not configured' });
         }
 
-        // BUG #39: Sets req.user but never extracts user info from token
-        req.user = { authenticated: true };
-        next();
+        try {
+            const payload = jwt.verify(bearerToken[1], secret, {
+                algorithms: ['HS256']
+            });
+
+            if (!payload || typeof payload !== 'object') {
+                res.set('WWW-Authenticate', 'Bearer error="invalid_token"');
+                return res.status(401).json({ message: 'Invalid token' });
+            }
+
+            req.user = payload;
+            return next();
+        } catch {
+            res.set('WWW-Authenticate', 'Bearer error="invalid_token"');
+            return res.status(401).json({ message: 'Invalid or expired token' });
+        }
     }
 };
 

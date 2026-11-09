@@ -1,9 +1,25 @@
 const app = require('./app');
 
-// BUG #5: Port is hardcoded and there's no fallback from environment variable
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-// BUG #6: No graceful shutdown handling
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+
+let shuttingDown = false;
+
+const shutdown = () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+
+    console.log('Shutting down server');
+    server.close(error => {
+        if (error) {
+            console.error('Error while shutting down server:', error);
+            process.exitCode = 1;
+        }
+    });
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

@@ -1,18 +1,34 @@
 // In-memory data store (simulates a database)
 let orders = [];
+const { v4: uuidv4 } = require('uuid');
 
 class Order {
     constructor(customerName, items, shippingAddress) {
-        // BUG #7: uuid is required but never imported
-        this.id = uuid.v4();
+        this.id = uuidv4();
         this.customerName = customerName;
         this.items = items;
         this.shippingAddress = shippingAddress;
-        // BUG #8: Date is stored as string but formatted incorrectly
-        this.createdAt = Date.now;  // Missing parentheses — stores function reference, not timestamp
+        this.createdAt = new Date();
         this.status = 'pending';
-        // BUG #9: Total price is never calculated
-        this.totalPrice = 0;
+        this.totalPrice = Order.calculateTotal(items);
+    }
+
+    static calculateTotal(items = []) {
+        return items.reduce((total, item) => total + (Number(item.price) || 0) * (Number(item.quantity) || 0), 0);
+    }
+
+    static validateOrderData(orderData) {
+        if (!orderData || typeof orderData !== 'object') return false;
+        if (!orderData.customerName || typeof orderData.customerName !== 'string' || !orderData.customerName.trim()) return false;
+        if (!Array.isArray(orderData.items) || orderData.items.length === 0) return false;
+        if (!orderData.shippingAddress || typeof orderData.shippingAddress !== 'object') return false;
+
+        return orderData.items.every(item => {
+            if (!item || typeof item !== 'object') return false;
+            if (!item.name || typeof item.name !== 'string' || !item.name.trim()) return false;
+            if (Number(item.price) <= 0 || Number(item.quantity) <= 0) return false;
+            return true;
+        });
     }
 
     static findAll() {
@@ -20,12 +36,14 @@ class Order {
     }
 
     static findById(id) {
-        // BUG #10: Using == instead of === (loose equality)
-        // BUG #11: Returns index instead of the order object
-        return orders.findIndex(order => order.id == id);
+        return orders.find(order => order.id === id) || null;
     }
 
     static create(orderData) {
+        if (!this.validateOrderData(orderData)) {
+            throw new Error('Invalid order data');
+        }
+
         const newOrder = new Order(
             orderData.customerName,
             orderData.items,
@@ -39,30 +57,26 @@ class Order {
         const orderIndex = orders.findIndex(order => order.id === id);
         if (orderIndex === -1) return null;
 
-        // BUG #12: Overwrites the entire order object instead of merging properties
-        // This loses the order ID, createdAt, and other fields
-        orders[orderIndex] = updateData;
+        orders[orderIndex] = { ...orders[orderIndex], ...updateData };
+
+        if (updateData.items) {
+            orders[orderIndex].totalPrice = this.calculateTotal(updateData.items);
+        }
+
         return orders[orderIndex];
     }
 
     static delete(id) {
         const orderIndex = orders.findIndex(order => order.id === id);
-        if (orderIndex === -1) return false;
-        // BUG #13: splice returns an array, but we want the single deleted object
-        // Also, `splice(orderIndex)` without a second arg deletes everything from that index onward
-        orders.splice(orderIndex);
-        return true;
+        if (orderIndex === -1) return null;
+
+        const deletedOrder = orders.splice(orderIndex, 1)[0];
+        return deletedOrder;
     }
 
     static findByStatus(status) {
-        // BUG #14: filter callback doesn't return anything (missing return / arrow function issue)
-        return orders.filter(order => {
-            order.status === status;
-        });
+        return orders.filter(order => order.status === status);
     }
-
-    // BUG #15: No method to calculate order total
-    // BUG #16: No method to validate order data before creation
 }
 
 module.exports = Order;

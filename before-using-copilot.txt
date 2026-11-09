@@ -1,0 +1,20 @@
+Does the server start? 
+(No) 
+
+What error occurs? 
+
+Error: Cannot find module 'express'
+
+
+Which file is referenced in the stack trace? 
+
+- /media/vasyl/Data/MS Skilling Hub/Agentic DevOps with GitHub/Lab 09/buggy-order-api-lab/src/app.js
+- /media/vasyl/Data/MS Skilling Hub/Agentic DevOps with GitHub/Lab 09/buggy-order-api-lab/src/server.js
+
+Why would Express reject a route definition? 
+
+code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/media/vasyl/Data/MS Skilling Hub/Agentic DevOps with GitHub/Lab 09/buggy-order-api-lab/src/app.js',
+    '/media/vasyl/Data/MS Skilling Hub/Agentic DevOps with GitHub/Lab 09/buggy-order-api-lab/src/server.js'
+]
